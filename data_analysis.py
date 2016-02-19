@@ -19,12 +19,12 @@ from scipy import stats
 
 # File location constants
 FILE_DIRECTORY = 'C:/Users/cgavi/OneDrive/phd2/jira_data/'
-FILE_NAME = 'Tester_Behaviour_Board_2_1455831954061.csv'
+FILE_NAME = 'Tester_Behaviour_Board_2_1455916587391.csv'
 ISSUES_FILE_NAME = 'Issues_for_Board_2_1455828073134.csv'
 
 
 TESTERS = ['rayeesn', 'sangeethah', 'chandanp', 'jessicawang', 'sailaja',
-           'parth', 'minchen07', 'alena1108', 'nitinme', 'minchen07']
+           'parth', 'minchen07', 'alena1108', 'nitinme']
 DATA_COLUMNS = ['Expected Inflated Fixes', 'Expected Severe Fixes',
                 'Expected Non Severe Fixes']
 
@@ -41,6 +41,7 @@ TIMEFRAME_ISSUES_COLUMN = 'Issues Reported'
 TIMEFRAME_SEVERE_COLUMN = 'Severe Issues'
 TIMEFRAME_NONSEVERE_COLUMN = 'Non-Severe Issues Found'
 TIMEFRAME_DEFAULT_COLUMN = 'Default Issues Found'
+INF_RATIO_COLUMN = 'Time Frame Inflation Ratio'
 
 #Issue CSV columns
 PRIORITY_COLUMN = 'Original Priority'
@@ -194,6 +195,7 @@ def load_release_dataset(data_frame):
     severity_ratio = []
     number_of_testers = []
     tester_productivity = []
+    timeframe_inf_ratio = []
 
     for release in release_values:
         release_data = data_frame[data_frame['Release'].isin([release])]
@@ -205,6 +207,7 @@ def load_release_dataset(data_frame):
         severity_ratio.append(release_data['Release Severity Ratio'].iloc[0])
         number_of_testers.append(release_data['Number of Testers'].iloc[0])
         tester_productivity.append(release_data[TESTER_PROD_COLUMN].iloc[0])
+        timeframe_inf_ratio.append(release_data[INF_RATIO_COLUMN].iloc[0])
 
     return DataFrame({'Order': range(len(release_values)),
                       'Release': release_values,
@@ -215,7 +218,8 @@ def load_release_dataset(data_frame):
                       'Inflation Ration (var)': var_inflation_ratio,
                       'Release Severity Ratio': severity_ratio,
                       'Number of Testers': number_of_testers,
-                      TESTER_PROD_COLUMN: tester_productivity})
+                      TESTER_PROD_COLUMN: tester_productivity,
+                      INF_RATIO_COLUMN: timeframe_inf_ratio})
 
 
 def load_tester_reports(data_frame, tester_name):
@@ -259,7 +263,7 @@ def main():
 
     #Plotting external event data
     width_height = (20, 60)
-    _, axes = plt.subplots(11, 1, figsize=width_height)
+    _, axes = plt.subplots(12, 1, figsize=width_height)
     plot_external_event(data_frame, STRATEGY_COLUMN, axes[0])
     plot_external_event(data_frame, SEVERE_FOUND_COLUMN, axes[1])
     plot_external_event(data_frame, NONSEVERE_FOUND_COLUMN, axes[2])
@@ -272,6 +276,7 @@ def main():
     plot_strategy(release_data_frame, 'Release', 'Inflation Ratio (med)', axes[8])
     plot_strategy(release_data_frame, 'Release', 'Inflation Ration (var)', axes[9])
     plot_external_event(data_frame, TIMEFRAME_ISSUES_COLUMN, axes[10])
+    plot_strategy(release_data_frame, 'Release', INF_RATIO_COLUMN, axes[11])
 
     plot_tester_strategy(TESTERS, data_frame, [STRATEGY_COLUMN, SUCCESS_COLUMN,
                                                SEVERE_REPORTED_COLUMN])

@@ -5,7 +5,7 @@ from scipy import stats
 import matplotlib.pyplot as plt
 import data_analysis
 
-TIME_FRAMES = 24
+TIME_FRAMES = 10
 NUMBER_OF_TESTERS = 9
 
 SEVERE_KEY = 'severe'
@@ -19,12 +19,6 @@ INFLATED_SUFFIX = '_inflated'
 SEVERE_VALUE = 7
 DEFAULT_VALUE = 3
 NONSEVERE_VALUE = 1
-
-TESTER_NAMES = ['sangeethah', 'rayeesn', 'chandanp', 'sailaja', 'alena1108',
-                'jessicawang', 'minchen07', 'parth', 'nitinme']
-POPULATION_STRATEGIES = [(0.08, 0.89), (0.06, 0.97), (0.1, 0.84), (0.06, 0.34),
-                         (0.1, 0.5), (0, 0), (0.55, 0), (0.086, 0.56), (0.1, 0)]
-
 
 class DeveloperTeam(object):
     """ A Developer Team that fixes defects based on reporter priorities """
@@ -300,6 +294,7 @@ class SoftwareTesting(object):
         inflation_ratio = [float(inflated)/reported
                            for inflated, reported in zip(inflated_issues, total_issues)]
         tester_scores = [sum(tester.scores) for tester in self.tester_team]
+        tester_names = [tester.name for tester in self.tester_team]
 
         print 'inflation_ratio \n', inflation_ratio
 
@@ -309,8 +304,24 @@ class SoftwareTesting(object):
         axis[0].plot(inflation_ratio, linestyle='dashed', marker='o')
 
         axis[1].set_title("Tester Ranking")
-        axis[1].set_xticklabels(TESTER_NAMES, rotation=90)
-        axis[1].bar(range(len(TESTER_NAMES)), tester_scores)
+        axis[1].set_xticklabels(tester_names, rotation=90)
+        axis[1].bar(range(len(tester_names)), tester_scores)
+
+def get_tester_team(data_frame):
+    """ Retrieves the tester team, including names and probabilities """
+
+    tester_team = []
+
+    for tester_name in data_analysis.TESTERS:
+        tester_dataframe = data_analysis.load_tester_reports(data_frame,
+                                                             tester_name)
+        default_probability = tester_dataframe['Default Inflation Ratio'].iloc[0]
+        nonsevere_probability = tester_dataframe['Non-Severe Inflation Ratio'].iloc[0]
+
+        tester_strategy = (default_probability, nonsevere_probability)
+        tester_team.append(Tester(tester_name,
+                                  StochasticInflationStrategy(tester_strategy)))
+    return tester_team
 
 def main():
     """ Initial execution point """
@@ -327,8 +338,8 @@ def main():
     test_productivity_kernel = stats.gaussian_kde(test_productivity_data)
 
     dev_team = DeveloperTeam(dev_productivity_kernel)
-    tester_team = [Tester(name, StochasticInflationStrategy(strategy))
-                   for name, strategy in zip(TESTER_NAMES, POPULATION_STRATEGIES)]
+    tester_team = get_tester_team(data_frame)
+    print 'tester_team ', tester_team
 
     priority_probabilities = data_analysis.get_priority_dictionary(data_frame)
     print 'priority_probabilities \n', priority_probabilities
