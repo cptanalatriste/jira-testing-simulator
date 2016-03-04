@@ -58,7 +58,7 @@ def continuos_best_fit(samples):
     uniform_dist = fit_distribution(samples, stats.uniform, "uniform")
     expon_dist = fit_distribution(samples, stats.expon, "expon")
 
-    #Results are the same from normal
+    #Results are similar to normal
     lognorm_dist = fit_distribution(samples, stats.lognorm, "lognorm")
     gamma_dist = fit_distribution(samples, stats.gamma, "gamma")
     beta_dist = fit_distribution(samples, stats.beta, "beta")
@@ -87,8 +87,6 @@ def plot_continuos_distributions(samples, dist_list=[]):
     figure, axis = plt.subplots(1, 1, figsize=(8, 4))
     axis.hist(samples, label="original data", normed=1, bins=10)
 
-    minimum = samples.min()
-    maximum = samples.max()
     x_values = np.linspace(0, 1)
 
     for dist in dist_list:
@@ -100,7 +98,7 @@ def plot_continuos_distributions(samples, dist_list=[]):
 def poisson_best_fit(dataset):
     """ Returns the poisson fit for a sample set """
     poisson_model = smf.poisson(AVG_TESTPROD_COLUMN + " ~ 1", data=dataset)
-        
+
     result = poisson_model.fit()
     lmbda = np.exp(result.params)
 

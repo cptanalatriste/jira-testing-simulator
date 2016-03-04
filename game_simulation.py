@@ -78,7 +78,7 @@ class DeveloperTeam(object):
         print 'defects_reported ', defects_reported
 
         productivity_ratio = from_distribution
-        productivity = int(round(productivity_ratio * defects_reported))
+        productivity = np.random.binomial(defects_reported, from_distribution)        
 
         print 'productivity_ratio ', productivity_ratio
         print 'productivity ', productivity
@@ -235,7 +235,8 @@ class SoftwareTesting(object):
         return issue_batch
 
     def assign_priority(self):
-        """ Generates a priority based on the probabilities """
+        """ Generates a priority based on the probabilities. It is weighted
+        random choice"""
 
         maximum = sum(self.priority_probabilities.values())
         picker = random.uniform(0, maximum)
