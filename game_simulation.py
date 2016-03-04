@@ -3,10 +3,10 @@ import random
 
 from scipy import stats
 import matplotlib.pyplot as plt
+import numpy as np
 import data_analysis
 
-TIME_FRAMES = 10
-NUMBER_OF_TESTERS = 9
+TIME_FRAMES = 1000
 
 SEVERE_KEY = 'severe'
 DEFAULT_KEY = 'default'
@@ -23,8 +23,10 @@ NONSEVERE_VALUE = 1
 class DeveloperTeam(object):
     """ A Developer Team that fixes defects based on reporter priorities """
 
-    def __init__(self, kernel):
-        self.kernel = kernel
+    def __init__(self, cont_dist):
+        """ According to latest data analysis, the productivity takes a
+        Continuous distribution """
+        self.cont_dist = cont_dist
 
     def fix(self, tester_reports):
         """ Giving a list of reports, it returns how many of them got fixed """
@@ -72,10 +74,10 @@ class DeveloperTeam(object):
                                 for report in tester_reports]
 
         defects_reported = sum(consolidated_reports)
-        from_kernel = self.kernel.resample(size=1)[0]
+        from_distribution = self.cont_dist.rvs()
         print 'defects_reported ', defects_reported
 
-        productivity_ratio = from_kernel[0] if from_kernel[0] >= 0 else 0
+        productivity_ratio = from_distribution
         productivity = int(round(productivity_ratio * defects_reported))
 
         print 'productivity_ratio ', productivity_ratio
@@ -188,12 +190,12 @@ class Tester(object):
 class SoftwareTesting(object):
     """ Manages the testing of an specific release """
 
-    def __init__(self, tester_team, developer_team, load_generator,
+    def __init__(self, tester_team, developer_team, discrete_dist,
                  priority_probabilities):
         self.tester_team = tester_team
         self.developer_team = developer_team
 
-        self.load_generator = load_generator
+        self.discrete_dist = discrete_dist
         self.priority_probabilities = priority_probabilities
         self.time_frames = None
 
@@ -215,8 +217,8 @@ class SoftwareTesting(object):
     def generate_issue_batch(self):
         """ According to the probability distributions, it generates a batch of
         issues grouped by category """
-
-        time_frame_issues = int(self.load_generator.resample(size=1))
+        
+        time_frame_issues = self.discrete_dist.rvs()
         time_frame_issues = 0 if time_frame_issues < 0 else time_frame_issues
 
         print 'time_frame_issues ', type(time_frame_issues), time_frame_issues
@@ -298,30 +300,30 @@ class SoftwareTesting(object):
 
         print 'inflation_ratio \n', inflation_ratio
 
-        _, axis = plt.subplots(1, 2, figsize=(15, 5))
+        _, axis = plt.subplots(1, 2, figsize=(10, 3))
         axis[0].set_title("Inflation Ratio Evolution")
         axis[0].set_ylabel("Ratio")
-        axis[0].plot(inflation_ratio, linestyle='dashed', marker='o')
+        axis[0].plot(inflation_ratio, linestyle='solid')
 
         axis[1].set_title("Tester Ranking")
         axis[1].set_xticklabels(tester_names, rotation=90)
         axis[1].bar(range(len(tester_names)), tester_scores)
 
-def get_tester_team(data_frame):
+def get_tester_team(tester_dataframe):
     """ Retrieves the tester team, including names and probabilities """
-
     tester_team = []
-
-    for tester_name in data_analysis.TESTERS:
-        tester_dataframe = data_analysis.load_tester_reports(data_frame,
-                                                             tester_name)
-        default_probability = tester_dataframe['Default Inflation Ratio'].iloc[0]
-        nonsevere_probability = tester_dataframe['Non-Severe Inflation Ratio'].iloc[0]
-
+    
+    for index, tester in tester_dataframe.iterrows():
+        #TODO(cgavidia): The column names should be centralized
+        tester_name = index        
+        default_probability = tester['Default Inflation Ratio']
+        nonsevere_probability = tester['Non-Severe Inflation Ratio']
+        
         tester_strategy = (default_probability, nonsevere_probability)
         tester_team.append(Tester(tester_name,
-                                  StochasticInflationStrategy(tester_strategy)))
-    return tester_team
+                                  StochasticInflationStrategy(tester_strategy)))        
+    
+    return tester_team    
 
 def main():
     """ Initial execution point """
@@ -329,15 +331,17 @@ def main():
     print 'Starting simulation ... '
 
     data_frame = data_analysis.load_game_dataset()
-    release_data_frame = data_analysis.load_release_dataset(data_frame)
+    unfilted_data_frame = data_analysis.load_unfiltered_game_dataset()
+    release_data_frame = data_analysis.load_release_dataset(unfilted_data_frame)
 
     dev_productivity_data = data_analysis.sample_dev_productivity(release_data_frame)
-    dev_productivity_kernel = stats.gaussian_kde(dev_productivity_data)
 
     test_productivity_data = data_analysis.sample_tester_productivity(data_frame)
     test_productivity_kernel = stats.gaussian_kde(test_productivity_data)
 
-    dev_team = DeveloperTeam(dev_productivity_kernel)
+    #This is because the dev productivity is assumed continued uniform.
+    dev_team = DeveloperTeam(dev_productivity_data.min(),
+                             dev_productivity_data.max())
     tester_team = get_tester_team(data_frame)
     print 'tester_team ', tester_team
 
@@ -355,7 +359,7 @@ def main():
 
 if __name__ == "__main__":
 
-    for _ in range(10):
+    for _ in range(3):
         main()
 
 
