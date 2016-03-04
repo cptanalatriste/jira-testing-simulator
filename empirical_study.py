@@ -25,7 +25,7 @@ MONTH_COLUMN = "Month"
 AVG_TESTPROD_COLUMN = "Average_Productivity"
 
 #Time frame columns
-PERIOD_COLUMN  = "Release"
+PERIOD_COLUMN = "Release"
 DEVPROD_COLUMN = "Developer Productivity Ratio"
 
 #Tester columns
@@ -43,19 +43,19 @@ def fit_distribution(samples, dist_object, dist_name):
     print dist_name, ' fitted parameters: ', dist_params
     fitted_dist = dist_object(*dist_params)
 
-    d, p_value = stats.kstest(samples, dist_name, dist_params)
-    print dist_name, ' kstest: d ', d, ' p-value ', p_value
+    d_stat, p_value = stats.kstest(samples, dist_name, dist_params)
+    print dist_name, ' kstest: d ', d_stat, ' p-value ', p_value
 
-    return {"name": dist_name, "dist": fitted_dist, "d": d}
+    return {"name": dist_name, "dist": fitted_dist, "d": d_stat}
 
 def continuos_best_fit(samples):
     """ Selects the best-fit distribution for a continuos variable """
     normal_dist = fit_distribution(samples, stats.norm, "norm")
-    z, p_value = stats.normaltest(samples)
+    z_stat, p_value = stats.normaltest(samples)
     best_fit = None
-    print "Normal test: z ", z, " p_value ", p_value
+    print "Normal test: z ", z_stat, " p_value ", p_value
 
-    #TODO(cgavidia): Normality test is disables
+    #TODO(cgavidia): Normality test is disabled
     p_value = 0
 
     if p_value > 0.05:
@@ -89,9 +89,13 @@ def continuos_best_fit(samples):
 
     return best_fit
 
-def plot_continuos_distributions(samples, dist_list=[]):
+def plot_continuos_distributions(samples, dist_list=None):
     """ Plots a data series with a list of fitted distributions """
-    figure, axis = plt.subplots(1, 1, figsize=(8, 4))
+
+    if dist_list is None:
+        dist_list = []
+
+    _, axis = plt.subplots(1, 1, figsize=(8, 4))
     axis.hist(samples, label="original data", normed=1, bins=10)
 
     x_values = np.linspace(0, 1)
@@ -132,15 +136,18 @@ def poisson_best_fit(dataset):
 
     return poisson_dist
 
-def plot_discrete_distributions(samples, dist_list=[]):
+def plot_discrete_distributions(samples, dist_list=None):
     """ Plots a list of discretes distributions """
+    if dist_list is None:
+        dist_list = []
+
     maximum = samples.max()
 
     hist, bin_edges = np.histogram(samples, range=(0, maximum + 2),
                                    bins=maximum + 2,
                                    normed=True)
 
-    figure, axis = plt.subplots(1, 1, figsize=(8, 4))
+    _, axis = plt.subplots(1, 1, figsize=(8, 4))
 
     axis.bar(bin_edges[:-1], hist, align="center", label="original data")
 
@@ -156,7 +163,7 @@ def get_release_dataset(dataset):
     """ Produces a release dataset from a dataset of tester reports """
     release_dataset = dataset.ix[:, [PERIOD_COLUMN, DEVPROD_COLUMN,
                                      AVG_TESTPROD_COLUMN]]
-    release_dataset =  release_dataset.drop_duplicates()
+    release_dataset = release_dataset.drop_duplicates()
     release_dataset = release_dataset.set_index(PERIOD_COLUMN)
 
     return release_dataset
@@ -164,7 +171,7 @@ def get_release_dataset(dataset):
 def get_tester_dataset(dataset):
     """ Produces a tester dataset from a dataset of tester_reports """
     tester_dataset = dataset.ix[:, [TESTER_COLUMN, DEFAULT_INFRATIO,
-                                    NONSEVERE_INFRATIO ]]
+                                    NONSEVERE_INFRATIO]]
     tester_dataset = tester_dataset.drop_duplicates()
     tester_dataset = tester_dataset.set_index(TESTER_COLUMN)
     return tester_dataset
