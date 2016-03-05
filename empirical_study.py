@@ -203,7 +203,7 @@ def run_scenario(devprod_dist, testprod_dist, test_team, probability_map, releas
                     
     total_sum = np.sum(total)
     inflated_sum = np.sum(inflated)    
-    tester_scores = {tester.name: sum(tester.scores) 
+    tester_scores = {tester.name: float(sum(tester.scores))/sum(tester.consolidate_release_reports()) 
                      for tester in product_testing.tester_team}    
     
     return total_sum, inflated_sum, tester_scores
@@ -241,6 +241,7 @@ def get_inflation_metrics(dataset):
     inflated_issues = float(dataset[TIMEFRAME_INFLATION_COLUMN].sum())
     inf_ratio = inflated_issues/total_issues
     scores = defaultdict(lambda: 0)
+    reports = defaultdict(lambda: 0)
     
     for index, tester_play in dataset.iterrows():
         tester_name = tester_play[TESTER_COLUMN]        
@@ -248,11 +249,16 @@ def get_inflation_metrics(dataset):
         default_fixed = tester_play[DEFFIXED_COLUMN]
         nonsevere_fixed = tester_play[NONSEVFIXED_COLUMN]
         
+        reported = tester_play[TESTERPROD_COLUMN]
+        
         score = game_simulation.get_score({game_simulation.SEVERE_KEY: severe_fixed,
                                            game_simulation.DEFAULT_KEY: default_fixed,
                                            game_simulation.NON_SEVERE_KEY: nonsevere_fixed})
         scores[tester_name] += score
+        reports[tester_name] += reported
                 
+    scores = {tester_name: float(scores.get(tester_name, 0))/reports.get(tester_name, 0) 
+              for tester_name in set(scores)}
     sorted_scores = sorted(scores.items(), key=operator.itemgetter(1),
                            reverse=True)
     
@@ -286,7 +292,7 @@ def main():
     probability_map = data_analysis.get_priority_dictionary(train_dataset)
 
     print 'train_releases ', train_releases
-    simulate(devprod_dist, testprod_dist, test_team, probability_map, train_releases)
+    #simulate(devprod_dist, testprod_dist, test_team, probability_map, train_releases)
     train_avginflation, train_inflation, train_scores = get_inflation_metrics(train_dataset)
 
     test_selector = np.logical_or(dataset.Year == 2014,
@@ -297,8 +303,8 @@ def main():
     test_releases = len(release_test_dataset.index)
     print 'test_releases ', test_releases
 
-    #simulate(devprod_dist, testprod_dist, test_team, probability_map, test_releases)
-    #avg_inflation, total_inflation, sorted_scores = get_inflation_metrics(test_dataset)
+    simulate(devprod_dist, testprod_dist, test_team, probability_map, test_releases)
+    avg_inflation, total_inflation, sorted_scores = get_inflation_metrics(test_dataset)
 
 if __name__ == "__main__":
     main()

@@ -48,8 +48,8 @@ class DeveloperTeam(object):
             default_reports.extend([tester_index for _ in range(report[DEFAULT_KEY])])
             non_severe_reports.extend([tester_index for _ in range(report[NON_SEVERE_KEY])])
 
-        severe_fixed = self.process_priority_batch(productivity, severe_reports, fix_reports,
-                                                   SEVERE_KEY)
+        severe_fixed = self.process_priority_batch(productivity, severe_reports,
+                                                   fix_reports, SEVERE_KEY)
         default_fixed = 0
 
         if productivity - severe_fixed > 0:
@@ -167,6 +167,11 @@ class Tester(object):
         inflation, report = self.testing_strategy.report(issue_list)
         self.record(test_report=report, inflation_report=inflation)
         return report
+        
+    def consolidate_release_reports(self):
+        """ Calculates the total number of issues reported by release """
+        return [report[SEVERE_KEY] + report[NON_SEVERE_KEY] + report[DEFAULT_KEY]
+                for report in self.release_reports]
 
     def record(self, test_report=None, inflation_report=None, fix_report=None):
         """ Stores the report made """
