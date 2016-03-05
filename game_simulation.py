@@ -77,8 +77,8 @@ class DeveloperTeam(object):
         from_distribution = self.cont_dist.rvs()
         print 'defects_reported ', defects_reported
 
-        productivity_ratio = from_distribution
-        productivity = np.random.binomial(defects_reported, from_distribution)        
+        productivity_ratio = abs(from_distribution)
+        productivity = np.random.binomial(defects_reported, productivity_ratio)
 
         print 'productivity_ratio ', productivity_ratio
         print 'productivity ', productivity
@@ -179,13 +179,8 @@ class Tester(object):
 
         if fix_report:
             self.fix_reports.append(fix_report)
-            self.scores.append(self.get_score(fix_report))
+            self.scores.append(get_score(fix_report))
 
-    def get_score(self, fix_report):
-        """ Calculates the payoff function given an specific outcome """
-        return fix_report[SEVERE_KEY] * SEVERE_VALUE + \
-                fix_report[DEFAULT_KEY] * DEFAULT_VALUE + \
-                fix_report[NON_SEVERE_KEY] * NONSEVERE_VALUE
 
 class SoftwareTesting(object):
     """ Manages the testing of an specific release """
@@ -204,6 +199,7 @@ class SoftwareTesting(object):
         the fix procedure"""
 
         self.time_frames = time_frames
+        map(lambda tester: tester.reset(), self.tester_team)
 
         for _ in range(time_frames):
             test_reports = [tester.report(self.generate_issue_batch())
@@ -217,7 +213,7 @@ class SoftwareTesting(object):
     def generate_issue_batch(self):
         """ According to the probability distributions, it generates a batch of
         issues grouped by category """
-        
+
         time_frame_issues = self.discrete_dist.rvs()
         time_frame_issues = 0 if time_frame_issues < 0 else time_frame_issues
 
@@ -310,21 +306,27 @@ class SoftwareTesting(object):
         axis[1].set_xticklabels(tester_names, rotation=90)
         axis[1].bar(range(len(tester_names)), tester_scores)
 
+def get_score(fix_report):
+    """ Calculates the payoff function given an specific outcome """
+    return fix_report[SEVERE_KEY] * SEVERE_VALUE + \
+            fix_report[DEFAULT_KEY] * DEFAULT_VALUE + \
+            fix_report[NON_SEVERE_KEY] * NONSEVERE_VALUE
+
 def get_tester_team(tester_dataframe):
     """ Retrieves the tester team, including names and probabilities """
     tester_team = []
-    
+
     for index, tester in tester_dataframe.iterrows():
         #TODO(cgavidia): The column names should be centralized
-        tester_name = index        
+        tester_name = index
         default_probability = tester['Default Inflation Ratio']
         nonsevere_probability = tester['Non-Severe Inflation Ratio']
-        
+
         tester_strategy = (default_probability, nonsevere_probability)
         tester_team.append(Tester(tester_name,
-                                  StochasticInflationStrategy(tester_strategy)))        
-    
-    return tester_team    
+                                  StochasticInflationStrategy(tester_strategy)))
+
+    return tester_team
 
 def main():
     """ Initial execution point """

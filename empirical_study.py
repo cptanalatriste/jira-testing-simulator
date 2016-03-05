@@ -6,6 +6,8 @@ import matplotlib.pyplot as plt
 import statsmodels.formula.api as smf
 
 from scipy import stats
+from collections import defaultdict
+import operator
 
 import game_simulation
 #TODO(cgavidia): Refactor and rename this module
@@ -18,6 +20,10 @@ TESTERPROD_COLUMN = "Issues Reported"
 TOT_TESPROD_COLUMN = "Tester Productivity"
 NUM_TESTERS_COLUMN = "Number of Testers"
 TIMEFRAME_INFLATION_COLUMN = "Possible Inflations"
+
+SEVFIXED_COLUMN = "Severe Release Fixes"
+DEFFIXED_COLUMN = "Default Release Fixes"
+NONSEVFIXED_COLUMN = "Non Severe Release Fixes"
 
 #Generated columns
 YEAR_COLUMN = "Year"
@@ -194,34 +200,67 @@ def run_scenario(devprod_dist, testprod_dist, test_team, probability_map, releas
     inflated = [report[game_simulation.DEFAULT_KEY + game_simulation.INFLATED_SUFFIX] +
                 report[game_simulation.NON_SEVERE_KEY + game_simulation.INFLATED_SUFFIX]
                 for report in consolidated_reports]
+                    
     total_sum = np.sum(total)
-    inflated_sum = np.sum(inflated)
-
-    return total_sum, inflated_sum
+    inflated_sum = np.sum(inflated)    
+    tester_scores = {tester.name: sum(tester.scores) 
+                     for tester in product_testing.tester_team}    
+    
+    return total_sum, inflated_sum, tester_scores
 
 def simulate(devprod_dist, testprod_dist, test_team, probability_map, releases):
     """ Calculates inflation information by executing a monte-carlo simulation """
     inflated_issues = []
     ratio = []
+    scores = defaultdict(lambda: 0)
+    
     for _ in range(MAX_RUNS):
-        total, inflated = run_scenario(devprod_dist, testprod_dist,
+        total, inflated, tester_scores = run_scenario(devprod_dist, testprod_dist,
                                        test_team, probability_map, releases)
         inflated_issues.append(inflated)
-        ratio.append(float(inflated)/total)
-
-    print releases, ' periods ', MAX_RUNS, ' runs: Average inflation ', np.mean(inflated_issues)
-    print releases, 'periods ', MAX_RUNS, ' runs: Average ratio ', np.mean(ratio)
+        ratio.append(float(inflated)/total)      
+        
+        scores = {tester_name: scores.get(tester_name, 0) + tester_scores.get(tester_name, 0) 
+                  for tester_name in set(tester_scores)}
+        
+    avg_inflation = np.mean(inflated_issues) 
+    avg_ratio = np.mean(ratio)
+    
+    scores = {tester_name: float(sum_score)/MAX_RUNS 
+              for tester_name, sum_score in scores.items()}
+    avg_scores = sorted(scores.items(), key=operator.itemgetter(1), reverse=True)                 
+    
+    print releases, ' periods ', MAX_RUNS, ' runs: Average inflation ', avg_inflation
+    print releases, 'periods ', MAX_RUNS, ' runs: Average ratio ', avg_ratio
+    print releases, 'periods ', MAX_RUNS, ' runs: Average scores ', avg_scores
 
 def get_inflation_metrics(dataset):
-    """ Returns the average inflation and inflated issues for a dataset """
+    """ Returns the average inflation and inflated issues for a dataset. It also
+    includes the score calculations"""
     total_issues = float(dataset[data_analysis.TIMEFRAME_ISSUES_COLUMN].sum())
     inflated_issues = float(dataset[TIMEFRAME_INFLATION_COLUMN].sum())
     inf_ratio = inflated_issues/total_issues
-
+    scores = defaultdict(lambda: 0)
+    
+    for index, tester_play in dataset.iterrows():
+        tester_name = tester_play[TESTER_COLUMN]        
+        severe_fixed = tester_play[SEVFIXED_COLUMN]
+        default_fixed = tester_play[DEFFIXED_COLUMN]
+        nonsevere_fixed = tester_play[NONSEVFIXED_COLUMN]
+        
+        score = game_simulation.get_score({game_simulation.SEVERE_KEY: severe_fixed,
+                                           game_simulation.DEFAULT_KEY: default_fixed,
+                                           game_simulation.NON_SEVERE_KEY: nonsevere_fixed})
+        scores[tester_name] += score
+                
+    sorted_scores = sorted(scores.items(), key=operator.itemgetter(1),
+                           reverse=True)
+    
     print 'Dataset: inflation ', inflated_issues
-    print 'Dataset ratio ', inf_ratio
+    print 'Dataset ratio ', inf_ratio    
+    print 'Dataset scores ', sorted_scores    
 
-    return inf_ratio, inflated_issues
+    return inf_ratio, inflated_issues, sorted_scores
 
 def main():
     """ Initial execution point """
@@ -247,8 +286,8 @@ def main():
     probability_map = data_analysis.get_priority_dictionary(train_dataset)
 
     print 'train_releases ', train_releases
-    #simulate(devprod_dist, testprod_dist, test_team, probability_map, train_releases)
-    avg_inflation, total_inflation = get_inflation_metrics(train_dataset)
+    simulate(devprod_dist, testprod_dist, test_team, probability_map, train_releases)
+    train_avginflation, train_inflation, train_scores = get_inflation_metrics(train_dataset)
 
     test_selector = np.logical_or(dataset.Year == 2014,
                                   np.logical_and(dataset.Year == 2015,
@@ -258,9 +297,8 @@ def main():
     test_releases = len(release_test_dataset.index)
     print 'test_releases ', test_releases
 
-    simulate(devprod_dist, testprod_dist, test_team, probability_map, test_releases)
-    avg_inflation, total_inflation = get_inflation_metrics(test_dataset)
-
+    #simulate(devprod_dist, testprod_dist, test_team, probability_map, test_releases)
+    #avg_inflation, total_inflation, sorted_scores = get_inflation_metrics(test_dataset)
 
 if __name__ == "__main__":
     main()
