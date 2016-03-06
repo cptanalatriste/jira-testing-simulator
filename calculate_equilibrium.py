@@ -78,7 +78,8 @@ def define_payoffs(game, profiles, scores_per_profile):
             print 'player_index ', player_index
             print 'payoff[1]  ', payoff[1]
 
-            payoff_as_decimal = decimal.Decimal(payoff[1])
+            #Only to simplify representation
+            payoff_as_decimal = int(payoff[1])
             game[profile_identifier][player_index] = payoff_as_decimal
 
         pprint(profile)

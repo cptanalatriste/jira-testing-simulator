@@ -151,8 +151,8 @@ class StochasticInflationStrategy(object):
         return inflated_issues
 
     def __str__(self):
-        return "(" + str(self.index) + " DEFAULT " + str(self.for_default) + \
-                ", NONSEVERE " + str(self.for_nonsevere) + ")"
+        return "D " + str(self.for_default) + \
+                ", NS " + str(self.for_nonsevere)
     
     def __repr__(self):
         return str(self)
