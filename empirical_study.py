@@ -27,8 +27,6 @@ DEFFIXED_COLUMN = "Default Release Fixes"
 NONSEVFIXED_COLUMN = "Non Severe Release Fixes"
 
 #Generated columns
-YEAR_COLUMN = "Year"
-MONTH_COLUMN = "Month"
 AVG_TESTPROD_COLUMN = "Average_Productivity"
 
 #Time frame columns
@@ -58,13 +56,14 @@ def fit_distribution(samples, dist_object, dist_name):
 def fit_beta_distribution(samples):
     """ Fits a beta distribution using maximum likelihood fit and tests it thorugh
     Kolmogorov-Smirnov. This includes setting floc and scale parameters and
-    adjusting sample information"""    
+    adjusting sample information. Keep in mind that this is a standard beta:
+    The range is between 0 and 1"""    
     
     adjusted_samples = samples.copy()    
     adjusted_samples[adjusted_samples <= 0] = 0.01
     adjusted_samples[adjusted_samples >= 1] = 0.99    
     
-    dist_params = stats.beta.fit(adjusted_samples, floc=0.0,fscale=1.0)
+    dist_params = stats.beta.fit(adjusted_samples, floc=0.0, fscale=1.0)
     
     print 'dist_params', dist_params   
     
@@ -244,9 +243,6 @@ def main():
     exclusion_list = ["2015-07", "2015-08", "2015-09", "2015-10", "2015-11",
                       "2015-112"]
     dataset = dataset[~dataset[PERIOD_COLUMN].isin(exclusion_list)]
-
-    dataset[YEAR_COLUMN] = dataset[PERIOD_COLUMN].apply(lambda period: int(period[:4]))
-    dataset[MONTH_COLUMN] = dataset[PERIOD_COLUMN].apply(lambda period: int(period[5:]))
     dataset[AVG_TESTPROD_COLUMN] = dataset[TOT_TESPROD_COLUMN] / dataset[NUM_TESTERS_COLUMN]
     dataset[AVG_TESTPROD_COLUMN] = dataset[AVG_TESTPROD_COLUMN].astype(int)
     dataset.fillna(0, inplace=True)
@@ -272,8 +268,10 @@ def main():
     test_team = game_simulation.get_tester_team(tester_train_dataset)
     probability_map = data_analysis.get_priority_dictionary(train_dataset)
 
-#    game_simulation.simulate(devprod_dist, testprod_dist, test_team,
-#                             probability_map, train_releases, MAX_RUNS)
+    print 'probability_map ', probability_map
+
+    game_simulation.simulate(devprod_dist, testprod_dist, test_team,
+                             probability_map, train_releases, MAX_RUNS)
     train_avginflation, train_inflation, train_scores = get_inflation_metrics(train_dataset)
 
     game_simulation.simulate(devprod_dist, testprod_dist, test_team,

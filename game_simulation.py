@@ -1,9 +1,10 @@
 """ Support for the multi-agent simulation """
 import random
 
-from scipy import stats
 from collections import defaultdict
 import operator
+
+from scipy import stats
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -108,9 +109,10 @@ class DeveloperTeam(object):
 class StochasticInflationStrategy(object):
     """ Defines a particular strategy for testing on a release """
 
-    def __init__(self, inflation_prob=(0, 0)):
+    def __init__(self, inflation_prob=(0, 0), index=0):
         self.for_default = inflation_prob[0]
         self.for_nonsevere = inflation_prob[1]
+        self.index = index
 
     def report(self, issues_found):
         """ Makes a report, with the inflation results based on probabilities.
@@ -148,6 +150,13 @@ class StochasticInflationStrategy(object):
 
         return inflated_issues
 
+    def __str__(self):
+        return "(" + str(self.index) + " DEFAULT " + str(self.for_default) + \
+                ", NONSEVERE " + str(self.for_nonsevere) + ")"
+    
+    def __repr__(self):
+        return str(self)
+
 class Tester(object):
     """ A Tester, that reports defect for a Software Version """
 
@@ -170,7 +179,7 @@ class Tester(object):
         inflation, report = self.testing_strategy.report(issue_list)
         self.record(test_report=report, inflation_report=inflation)
         return report
-        
+
     def consolidate_release_reports(self):
         """ Calculates the total number of issues reported by release """
         return [report[SEVERE_KEY] + report[NON_SEVERE_KEY] + report[DEFAULT_KEY]
@@ -189,6 +198,11 @@ class Tester(object):
             self.fix_reports.append(fix_report)
             self.scores.append(get_score(fix_report))
 
+    def __str__(self):
+        return "NAME: " + self.name + " STRATEGY: " + str(self.testing_strategy)
+
+    def __repr__(self):
+        return str(self)
 
 class SoftwareTesting(object):
     """ Manages the testing of an specific release """
@@ -341,7 +355,7 @@ def run_scenario(devprod_dist, testprod_dist, test_team, probability_map, releas
     probability distributions only for one scenario """
 
     dev_team = DeveloperTeam(devprod_dist)
-    product_testing = SoftwareTesting(test_team, dev_team,testprod_dist,
+    product_testing = SoftwareTesting(test_team, dev_team, testprod_dist,
                                       probability_map)
     product_testing.test_and_fix(releases)
 
@@ -353,13 +367,15 @@ def run_scenario(devprod_dist, testprod_dist, test_team, probability_map, releas
     inflated = [report[DEFAULT_KEY + INFLATED_SUFFIX] +
                 report[NON_SEVERE_KEY + INFLATED_SUFFIX]
                 for report in consolidated_reports]
-                    
+
     total_sum = np.sum(total)
-    inflated_sum = np.sum(inflated)    
-    tester_scores = {tester.name: float(sum(tester.scores))/sum(tester.consolidate_release_reports()) 
-                     for tester in product_testing.tester_team}    
-    
-    return total_sum, inflated_sum, tester_scores
+    inflated_sum = np.sum(inflated)
+    tester_norm_scores = {tester.name: float(sum(tester.scores))/sum(tester.consolidate_release_reports())
+                          for tester in product_testing.tester_team}
+    tester_raw_scores = {tester.name: sum(tester.scores)
+                             for tester in product_testing.tester_team}
+
+    return total_sum, inflated_sum, tester_norm_scores, tester_raw_scores
 
 def simulate(devprod_dist, testprod_dist, test_team, probability_map, releases,
              max_runs):
@@ -367,27 +383,40 @@ def simulate(devprod_dist, testprod_dist, test_team, probability_map, releases,
     inflated_issues = []
     ratio = []
     scores = defaultdict(lambda: 0)
-    
+    total_scores = defaultdict(lambda: 0)
+
     for _ in range(max_runs):
-        total, inflated, tester_scores = run_scenario(devprod_dist, testprod_dist,
-                                       test_team, probability_map, releases)
+        total, inflated, norm_scores, raw_scores = run_scenario(devprod_dist,
+                                                                testprod_dist,
+                                                                test_team,
+                                                                probability_map,
+                                                                releases)
         inflated_issues.append(inflated)
-        ratio.append(float(inflated)/total)      
-        
-        scores = {tester_name: scores.get(tester_name, 0) + tester_scores.get(tester_name, 0) 
-                  for tester_name in set(tester_scores)}
-        
-    avg_inflation = np.mean(inflated_issues) 
+        ratio.append(float(inflated)/total)
+
+        #TODO(cgavidia): This can be done better. Refactor later.
+        scores = {tester_name: scores.get(tester_name, 0) + norm_scores.get(tester_name, 0)
+                  for tester_name in set(norm_scores)}
+        total_scores = {tester_name: total_scores.get(tester_name, 0) + raw_scores.get(tester_name, 0)
+                        for tester_name in set(raw_scores)}
+
+    avg_inflation = np.mean(inflated_issues)
     avg_ratio = np.mean(ratio)
-    
-    scores = {tester_name: float(sum_score)/max_runs 
+
+    scores = {tester_name: float(sum_score)/max_runs
               for tester_name, sum_score in scores.items()}
-    avg_scores = sorted(scores.items(), key=operator.itemgetter(1), reverse=True)                 
+    total_scores = {tester_name: float(sum_score)/max_runs
+                    for tester_name, sum_score in total_scores.items()}
+
+    avg_scores = sorted(scores.items(), key=operator.itemgetter(1),
+                        reverse=True)
+    total_scores = sorted(total_scores.items(), key=operator.itemgetter(0))
     
     print releases, ' periods ', max_runs, ' runs: Average inflation ', avg_inflation
     print releases, 'periods ', max_runs, ' runs: Average ratio ', avg_ratio
     print releases, 'periods ', max_runs, ' runs: Average scores ', avg_scores
 
+    return total_scores
 
 def main():
     """ Initial execution point """
