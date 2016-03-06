@@ -7,6 +7,7 @@ import statsmodels.formula.api as smf
 
 from scipy import stats
 from collections import defaultdict
+from sklearn import cross_validation
 import operator
 
 import game_simulation
@@ -14,7 +15,7 @@ import game_simulation
 import data_analysis
 
 FILE_DIRECTORY = 'C:/Users/cgavi/OneDrive/phd2/jira_data/'
-UNFILTERED_FILE_NAME = '10PARTICIPANTS_Tester_Behaviour_Board_2_1457039072592.csv'
+UNFILTERED_FILE_NAME = '10PARTICIPANTS_Tester_Behaviour_Board_2_1457218608670.csv'
 TESTER_COLUMN = "Tester"
 TESTERPROD_COLUMN = "Issues Reported"
 TOT_TESPROD_COLUMN = "Tester Productivity"
@@ -54,6 +55,27 @@ def fit_distribution(samples, dist_object, dist_name):
 
     return {"name": dist_name, "dist": fitted_dist, "d": d_stat}
 
+def fit_beta_distribution(samples):
+    """ Fits a beta distribution using maximum likelihood fit and tests it thorugh
+    Kolmogorov-Smirnov. This includes setting floc and scale parameters and
+    adjusting sample information"""    
+    
+    adjusted_samples = samples.copy()    
+    adjusted_samples[adjusted_samples <= 0] = 0.01
+    adjusted_samples[adjusted_samples >= 1] = 0.99    
+    
+    dist_params = stats.beta.fit(adjusted_samples, floc=0.0,fscale=1.0)
+    
+    print 'dist_params', dist_params   
+    
+    fitted_dist = stats.beta(*dist_params)
+    
+    dist_name = "beta"
+    d_stat, p_value = stats.kstest(adjusted_samples, dist_name, dist_params)
+    print dist_name, ' kstest: d ', d_stat, ' p-value ', p_value
+
+    return {"name": dist_name, "dist": fitted_dist, "d": d_stat}
+    
 def continuos_best_fit(samples):
     """ Selects the best-fit distribution for a continuos variable """
     normal_dist = fit_distribution(samples, stats.norm, "norm")
@@ -74,7 +96,7 @@ def continuos_best_fit(samples):
     #Results are similar to normal
     lognorm_dist = fit_distribution(samples, stats.lognorm, "lognorm")
     gamma_dist = fit_distribution(samples, stats.gamma, "gamma")
-    beta_dist = fit_distribution(samples, stats.beta, "beta")
+    beta_dist = fit_beta_distribution(samples)
     weibull_min_dist = fit_distribution(samples, stats.weibull_min, "weibull_min")
 
     dist_list = [#uniform_dist,
@@ -182,58 +204,6 @@ def get_tester_dataset(dataset):
     tester_dataset = tester_dataset.set_index(TESTER_COLUMN)
     return tester_dataset
 
-def run_scenario(devprod_dist, testprod_dist, test_team, probability_map, releases):
-    """ Executes the simulation based on the calculated
-    probability distributions only for one scenario """
-
-    dev_team = game_simulation.DeveloperTeam(devprod_dist)
-    product_testing = game_simulation.SoftwareTesting(test_team, dev_team,
-                                                      testprod_dist,
-                                                      probability_map)
-    product_testing.test_and_fix(releases)
-
-    consolidated_reports = product_testing.consolidate_report()
-    total = [report[game_simulation.SEVERE_KEY + game_simulation.REPORTED_SUFFIX] +
-             report[game_simulation.DEFAULT_KEY + game_simulation.REPORTED_SUFFIX] +
-             report[game_simulation.NON_SEVERE_KEY + game_simulation.REPORTED_SUFFIX]
-             for report in consolidated_reports]
-    inflated = [report[game_simulation.DEFAULT_KEY + game_simulation.INFLATED_SUFFIX] +
-                report[game_simulation.NON_SEVERE_KEY + game_simulation.INFLATED_SUFFIX]
-                for report in consolidated_reports]
-                    
-    total_sum = np.sum(total)
-    inflated_sum = np.sum(inflated)    
-    tester_scores = {tester.name: float(sum(tester.scores))/sum(tester.consolidate_release_reports()) 
-                     for tester in product_testing.tester_team}    
-    
-    return total_sum, inflated_sum, tester_scores
-
-def simulate(devprod_dist, testprod_dist, test_team, probability_map, releases):
-    """ Calculates inflation information by executing a monte-carlo simulation """
-    inflated_issues = []
-    ratio = []
-    scores = defaultdict(lambda: 0)
-    
-    for _ in range(MAX_RUNS):
-        total, inflated, tester_scores = run_scenario(devprod_dist, testprod_dist,
-                                       test_team, probability_map, releases)
-        inflated_issues.append(inflated)
-        ratio.append(float(inflated)/total)      
-        
-        scores = {tester_name: scores.get(tester_name, 0) + tester_scores.get(tester_name, 0) 
-                  for tester_name in set(tester_scores)}
-        
-    avg_inflation = np.mean(inflated_issues) 
-    avg_ratio = np.mean(ratio)
-    
-    scores = {tester_name: float(sum_score)/MAX_RUNS 
-              for tester_name, sum_score in scores.items()}
-    avg_scores = sorted(scores.items(), key=operator.itemgetter(1), reverse=True)                 
-    
-    print releases, ' periods ', MAX_RUNS, ' runs: Average inflation ', avg_inflation
-    print releases, 'periods ', MAX_RUNS, ' runs: Average ratio ', avg_ratio
-    print releases, 'periods ', MAX_RUNS, ' runs: Average scores ', avg_scores
-
 def get_inflation_metrics(dataset):
     """ Returns the average inflation and inflated issues for a dataset. It also
     includes the score calculations"""
@@ -271,39 +241,43 @@ def get_inflation_metrics(dataset):
 def main():
     """ Initial execution point """
     dataset = pd.read_csv(FILE_DIRECTORY + UNFILTERED_FILE_NAME)
+    exclusion_list = ["2015-07", "2015-08", "2015-09", "2015-10", "2015-11",
+                      "2015-112"]
+    dataset = dataset[~dataset[PERIOD_COLUMN].isin(exclusion_list)]
 
     dataset[YEAR_COLUMN] = dataset[PERIOD_COLUMN].apply(lambda period: int(period[:4]))
     dataset[MONTH_COLUMN] = dataset[PERIOD_COLUMN].apply(lambda period: int(period[5:]))
     dataset[AVG_TESTPROD_COLUMN] = dataset[TOT_TESPROD_COLUMN] / dataset[NUM_TESTERS_COLUMN]
     dataset[AVG_TESTPROD_COLUMN] = dataset[AVG_TESTPROD_COLUMN].astype(int)
-
-    train_selector = dataset.Year <= 2013
-    train_dataset = dataset[train_selector]
-    release_train_dataset = get_release_dataset(train_dataset)
-    tester_train_dataset = get_tester_dataset(train_dataset)
+    dataset.fillna(0, inplace=True)
+    
+    releases = get_release_dataset(dataset)    
+    release_train_dataset, release_test_dataset = cross_validation.train_test_split(releases,
+                                                                                    train_size=0.5)
+    train_dataset = dataset[dataset[PERIOD_COLUMN].isin(release_train_dataset.index.values)]     
+    test_dataset = dataset[dataset[PERIOD_COLUMN].isin(release_test_dataset.index.values)]     
     train_releases = len(release_train_dataset.index)
+    test_releases = len(release_test_dataset.index)
 
-    print release_train_dataset.head()
+    print 'train_releases ', train_releases
+    print 'test_releases ', test_releases  
+
+    tester_train_dataset = get_tester_dataset(train_dataset)
 
     devprod_samples = release_train_dataset[DEVPROD_COLUMN]
+    print devprod_samples.unique()
+   
     devprod_dist = continuos_best_fit(devprod_samples)
     testprod_dist = poisson_best_fit(release_train_dataset)
     test_team = game_simulation.get_tester_team(tester_train_dataset)
     probability_map = data_analysis.get_priority_dictionary(train_dataset)
 
-    print 'train_releases ', train_releases
-    #simulate(devprod_dist, testprod_dist, test_team, probability_map, train_releases)
+#    game_simulation.simulate(devprod_dist, testprod_dist, test_team,
+#                             probability_map, train_releases, MAX_RUNS)
     train_avginflation, train_inflation, train_scores = get_inflation_metrics(train_dataset)
 
-    test_selector = np.logical_or(dataset.Year == 2014,
-                                  np.logical_and(dataset.Year == 2015,
-                                                 dataset.Month <= 6))
-    test_dataset = dataset[test_selector]
-    release_test_dataset = get_release_dataset(test_dataset)
-    test_releases = len(release_test_dataset.index)
-    print 'test_releases ', test_releases
-
-    simulate(devprod_dist, testprod_dist, test_team, probability_map, test_releases)
+    game_simulation.simulate(devprod_dist, testprod_dist, test_team,
+                             probability_map, test_releases, MAX_RUNS)
     avg_inflation, total_inflation, sorted_scores = get_inflation_metrics(test_dataset)
 
 if __name__ == "__main__":

@@ -2,6 +2,9 @@
 import random
 
 from scipy import stats
+from collections import defaultdict
+import operator
+
 import matplotlib.pyplot as plt
 import numpy as np
 import data_analysis
@@ -77,7 +80,7 @@ class DeveloperTeam(object):
         from_distribution = self.cont_dist.rvs()
         print 'defects_reported ', defects_reported
 
-        productivity_ratio = abs(from_distribution)
+        productivity_ratio = from_distribution
         productivity = np.random.binomial(defects_reported, productivity_ratio)
 
         print 'productivity_ratio ', productivity_ratio
@@ -332,6 +335,59 @@ def get_tester_team(tester_dataframe):
                                   StochasticInflationStrategy(tester_strategy)))
 
     return tester_team
+
+def run_scenario(devprod_dist, testprod_dist, test_team, probability_map, releases):
+    """ Executes the simulation based on the calculated
+    probability distributions only for one scenario """
+
+    dev_team = DeveloperTeam(devprod_dist)
+    product_testing = SoftwareTesting(test_team, dev_team,testprod_dist,
+                                      probability_map)
+    product_testing.test_and_fix(releases)
+
+    consolidated_reports = product_testing.consolidate_report()
+    total = [report[SEVERE_KEY + REPORTED_SUFFIX] +
+             report[DEFAULT_KEY + REPORTED_SUFFIX] +
+             report[NON_SEVERE_KEY + REPORTED_SUFFIX]
+             for report in consolidated_reports]
+    inflated = [report[DEFAULT_KEY + INFLATED_SUFFIX] +
+                report[NON_SEVERE_KEY + INFLATED_SUFFIX]
+                for report in consolidated_reports]
+                    
+    total_sum = np.sum(total)
+    inflated_sum = np.sum(inflated)    
+    tester_scores = {tester.name: float(sum(tester.scores))/sum(tester.consolidate_release_reports()) 
+                     for tester in product_testing.tester_team}    
+    
+    return total_sum, inflated_sum, tester_scores
+
+def simulate(devprod_dist, testprod_dist, test_team, probability_map, releases,
+             max_runs):
+    """ Calculates inflation information by executing a monte-carlo simulation """
+    inflated_issues = []
+    ratio = []
+    scores = defaultdict(lambda: 0)
+    
+    for _ in range(max_runs):
+        total, inflated, tester_scores = run_scenario(devprod_dist, testprod_dist,
+                                       test_team, probability_map, releases)
+        inflated_issues.append(inflated)
+        ratio.append(float(inflated)/total)      
+        
+        scores = {tester_name: scores.get(tester_name, 0) + tester_scores.get(tester_name, 0) 
+                  for tester_name in set(tester_scores)}
+        
+    avg_inflation = np.mean(inflated_issues) 
+    avg_ratio = np.mean(ratio)
+    
+    scores = {tester_name: float(sum_score)/max_runs 
+              for tester_name, sum_score in scores.items()}
+    avg_scores = sorted(scores.items(), key=operator.itemgetter(1), reverse=True)                 
+    
+    print releases, ' periods ', max_runs, ' runs: Average inflation ', avg_inflation
+    print releases, 'periods ', max_runs, ' runs: Average ratio ', avg_ratio
+    print releases, 'periods ', max_runs, ' runs: Average scores ', avg_scores
+
 
 def main():
     """ Initial execution point """
