@@ -226,6 +226,7 @@ def get_release_dataset(dataset):
 
     return release_dataset
 
+
 def get_tester_dataset(dataset):
     """ Produces a tester dataset from a dataset of tester_reports
     :param dataset: Dataset of tester reports.
@@ -301,29 +302,56 @@ def preprocess(dataset):
 
     return dataset
 
-def main():
-    """ Initial execution point """
-    dataset = pd.read_csv(FILE_DIRECTORY + UNFILTERED_FILE_NAME)
-    dataset = preprocess(dataset)
-    releases = get_release_dataset(dataset)
-    release_train_dataset, release_test_dataset = cross_validation.train_test_split(releases,
-                                                                                    train_size=0.8)
-    train_dataset = dataset[dataset[PERIOD_COLUMN].isin(release_train_dataset.index.values)]
-    test_dataset = dataset[dataset[PERIOD_COLUMN].isin(release_test_dataset.index.values)]
-    train_releases = len(release_train_dataset.index)
-    test_releases = len(release_test_dataset.index)
 
-    print 'train_releases ', train_releases
-    print 'test_releases ', test_releases
-
+def learn_simulation_parameters(train_dataset, release_train_dataset):
+    """
+    Learns simulation parameter based on the training data provided.
+    :param train_dataset: Data set of tester reports.
+    :param release_train_dataset: Data set of releases.
+    :return: Probability distribution for developer productivity, Probability distribution for Tester Productivity,
+    Tester team with strategies, Probability distribution for priorities.
+    """
     tester_train_dataset = get_tester_dataset(train_dataset)
-
     devprod_samples = release_train_dataset[DEVPROD_COLUMN]
 
     devprod_dist = continuos_best_fit(devprod_samples)
     testprod_dist = poisson_best_fit(release_train_dataset)
     test_team = game_simulation.get_tester_team(tester_train_dataset)
     probability_map = data_analysis.get_priority_dictionary(train_dataset)
+
+    return devprod_dist, testprod_dist, test_team, probability_map
+
+
+def split_for_simulation(dataset):
+    """
+    Given a dataset is does a random test-train split.
+    :param dataset: Dataset of tester reports.
+    :return: For train and test, a dataset of reports and a dataset of releases.
+    """
+    dataset = preprocess(dataset)
+    releases = get_release_dataset(dataset)
+    release_train_dataset, release_test_dataset = cross_validation.train_test_split(releases,
+                                                                                    train_size=0.8)
+    train_dataset = dataset[dataset[PERIOD_COLUMN].isin(release_train_dataset.index.values)]
+    test_dataset = dataset[dataset[PERIOD_COLUMN].isin(release_test_dataset.index.values)]
+
+    return train_dataset, release_train_dataset, test_dataset, release_test_dataset
+
+
+def main():
+    """ Initial execution point """
+    dataset = pd.read_csv(FILE_DIRECTORY + UNFILTERED_FILE_NAME)
+
+    train_dataset, release_train_dataset, test_dataset, release_test_dataset = split_for_simulation(dataset)
+
+    train_releases = len(release_train_dataset.index)
+    test_releases = len(release_test_dataset.index)
+
+    print 'train_releases ', train_releases
+    print 'test_releases ', test_releases
+
+    devprod_dist, testprod_dist, test_team, probability_map = learn_simulation_parameters(train_dataset,
+                                                                                          release_train_dataset)
 
     print 'probability_map ', probability_map
 
