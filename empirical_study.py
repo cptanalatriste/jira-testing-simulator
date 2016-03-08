@@ -3,7 +3,7 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import statsmodels.formula.api as smf
+import statsmodels.api as sm
 
 from scipy import stats
 from collections import defaultdict
@@ -11,13 +11,13 @@ from sklearn import cross_validation
 import operator
 
 import game_simulation
-#TODO(cgavidia): Refactor and rename this module
+# TODO(cgavidia): Refactor and rename this module
 import data_analysis
 
-FILE_DIRECTORY = 'C:/Users/cgavi/OneDrive/phd2/jira_data/'
-UNFILTERED_FILE_NAME = '10PARTICIPANTS_Tester_Behaviour_Board_2_1457218608670.csv'
-TESTER_COLUMN = "Tester"
+FILE_DIRECTORY = 'C:/Users/Carlos G. Gavidia/OneDrive/phd2/jira_data/'
+UNFILTERED_FILE_NAME = 'UNFILTERED_Tester_Behaviour_Board_2_1457422313707.csv'
 TESTERPROD_COLUMN = "Issues Reported"
+TESTERFIX_COLUMN = "Next Release Fixes"
 TOT_TESPROD_COLUMN = "Tester Productivity"
 NUM_TESTERS_COLUMN = "Number of Testers"
 TIMEFRAME_INFLATION_COLUMN = "Possible Inflations"
@@ -26,23 +26,29 @@ SEVFIXED_COLUMN = "Severe Release Fixes"
 DEFFIXED_COLUMN = "Default Release Fixes"
 NONSEVFIXED_COLUMN = "Non Severe Release Fixes"
 
-#Generated columns
+# Generated columns
 AVG_TESTPROD_COLUMN = "Average_Productivity"
 
-#Time frame columns
+# Time frame columns
 PERIOD_COLUMN = "Release"
 DEVPROD_COLUMN = "Developer Productivity Ratio"
 
-#Tester columns
+# Tester columns
+TESTER_COLUMN = "Tester"
 DEFAULT_INFRATIO = "Default Inflation Ratio"
 NONSEVERE_INFRATIO = "Non-Severe Inflation Ratio"
+TESTER_REPORTS = "Tester Reported Issues"
 
-#Simulation params
-MAX_RUNS = 10000
+# Simulation params
+MAX_RUNS = 100
+
 
 def fit_distribution(samples, dist_object, dist_name):
     """ Fits a distribution using maximum likelihood fit and tests it thorugh
-    Kolmogorov-Smirnov """
+    Kolmogorov-Smirnov
+    :param dist_name: String identifier of the distribution
+    :param dist_object: Potential distribution
+    :param samples: Data values """
 
     dist_params = dist_object.fit(samples)
     print dist_name, ' fitted parameters: ', dist_params
@@ -53,36 +59,41 @@ def fit_distribution(samples, dist_object, dist_name):
 
     return {"name": dist_name, "dist": fitted_dist, "d": d_stat}
 
+
 def fit_beta_distribution(samples):
     """ Fits a beta distribution using maximum likelihood fit and tests it thorugh
     Kolmogorov-Smirnov. This includes setting floc and scale parameters and
     adjusting sample information. Keep in mind that this is a standard beta:
-    The range is between 0 and 1"""    
-    
-    adjusted_samples = samples.copy()    
+    The range is between 0 and 1
+    :param samples: Data values"""
+
+    adjusted_samples = samples.copy()
     adjusted_samples[adjusted_samples <= 0] = 0.01
-    adjusted_samples[adjusted_samples >= 1] = 0.99    
-    
+    adjusted_samples[adjusted_samples >= 1] = 0.99
+
     dist_params = stats.beta.fit(adjusted_samples, floc=0.0, fscale=1.0)
-    
-    print 'dist_params', dist_params   
-    
+
+    print 'dist_params', dist_params
+
     fitted_dist = stats.beta(*dist_params)
-    
+
     dist_name = "beta"
     d_stat, p_value = stats.kstest(adjusted_samples, dist_name, dist_params)
     print dist_name, ' kstest: d ', d_stat, ' p-value ', p_value
 
     return {"name": dist_name, "dist": fitted_dist, "d": d_stat}
-    
+
+
 def continuos_best_fit(samples):
-    """ Selects the best-fit distribution for a continuos variable """
+    """ Selects the best-fit distribution for a continuos variable
+    :param samples: Data values
+    """
     normal_dist = fit_distribution(samples, stats.norm, "norm")
     z_stat, p_value = stats.normaltest(samples)
     best_fit = None
     print "Normal test: z ", z_stat, " p_value ", p_value
 
-    #TODO(cgavidia): Normality test is disabled
+    # TODO(cgavidia): Normality test is disabled
     p_value = 0
 
     if p_value > 0.05:
@@ -92,32 +103,36 @@ def continuos_best_fit(samples):
     uniform_dist = fit_distribution(samples, stats.uniform, "uniform")
     expon_dist = fit_distribution(samples, stats.expon, "expon")
 
-    #Results are similar to normal
+    # Results are similar to normal
     lognorm_dist = fit_distribution(samples, stats.lognorm, "lognorm")
     gamma_dist = fit_distribution(samples, stats.gamma, "gamma")
     beta_dist = fit_beta_distribution(samples)
     weibull_min_dist = fit_distribution(samples, stats.weibull_min, "weibull_min")
 
-    dist_list = [#uniform_dist,
-                 #normal_dist,
-                 #expon_dist,
-                 #lognorm_dist,
-                 #gamma_dist,
-                 #weibull_min_dist,
-                 beta_dist]
+    dist_list = [  # uniform_dist,
+        # normal_dist,
+        # expon_dist,
+        # lognorm_dist,
+        # gamma_dist,
+        # weibull_min_dist,
+        beta_dist]
 
     plot_continuos_distributions(samples, dist_list)
 
     ks_best_fit = min(dist_list, key=lambda dist: dist["d"])
     print "The best fitting distribution according to kstest ", ks_best_fit["name"]
 
-    if not(best_fit) and ks_best_fit:
+    if not best_fit and ks_best_fit:
         best_fit = ks_best_fit["dist"]
 
     return best_fit
 
+
 def plot_continuos_distributions(samples, dist_list=None):
-    """ Plots a data series with a list of fitted distributions """
+    """ Plots a data series with a list of fitted distributions
+    :param dist_list: List of distributions to include in the plot.
+    :param samples: Data values.
+    """
 
     if dist_list is None:
         dist_list = []
@@ -132,10 +147,15 @@ def plot_continuos_distributions(samples, dist_list=None):
         axis.plot(x_values, y_values, label=dist["name"])
 
     axis.legend()
+    plt.savefig('continous_fit.png')
+
 
 def poisson_best_fit(dataset):
-    """ Returns the poisson fit for a sample set """
-    poisson_model = smf.poisson(AVG_TESTPROD_COLUMN + " ~ 1", data=dataset)
+    """ Returns the poisson fit for a sample set
+    :param dataset: Data values.
+    """
+    # poisson_model = smf.poisson(AVG_TESTPROD_COLUMN + " ~ 1", data=dataset)
+    poisson_model = sm.Poisson(dataset[AVG_TESTPROD_COLUMN], np.ones_like(dataset[AVG_TESTPROD_COLUMN]))
 
     result = poisson_model.fit()
     lmbda = np.exp(result.params)
@@ -154,7 +174,7 @@ def poisson_best_fit(dataset):
     plot_discrete_distributions(testprod_samples, [{"dist": poisson_dist,
                                                     "color": "red",
                                                     "name": "Poisson Fit"},
-                                                   {"dist":lower_poisson_dist,
+                                                   {"dist": lower_poisson_dist,
                                                     "color": "green",
                                                     "name": "Poisson Fit Lower"},
                                                    {"dist": higher_poisson_dist,
@@ -163,8 +183,12 @@ def poisson_best_fit(dataset):
 
     return poisson_dist
 
+
 def plot_discrete_distributions(samples, dist_list=None):
-    """ Plots a list of discretes distributions """
+    """ Plots a list of discretes distributions
+    :param dist_list: List of distributions to include in the plot.
+    :param samples: Data values.
+    """
     if dist_list is None:
         dist_list = []
 
@@ -184,85 +208,118 @@ def plot_discrete_distributions(samples, dist_list=None):
                  width=0.25, color=dist["color"], label=dist["name"])
 
     axis.legend()
+    plt.savefig('discrete_fit.png')
 
 
 def get_release_dataset(dataset):
-    """ Produces a release dataset from a dataset of tester reports """
-    release_dataset = dataset.ix[:, [PERIOD_COLUMN, DEVPROD_COLUMN,
-                                     AVG_TESTPROD_COLUMN]]
-    release_dataset = release_dataset.drop_duplicates()
-    release_dataset = release_dataset.set_index(PERIOD_COLUMN)
+    """ Produces a release dataset from a dataset of tester reports
+    :param dataset: Dataset of tester reports.
+    """
+
+    testerprod_series = dataset.groupby(PERIOD_COLUMN)[TESTERPROD_COLUMN].aggregate(np.sum)
+    devprod_series = dataset.groupby(PERIOD_COLUMN)[TESTERFIX_COLUMN].aggregate(np.sum)
+    testers_series = dataset.groupby(PERIOD_COLUMN)[NUM_TESTERS_COLUMN].aggregate(len)
+
+    release_dataset = pd.concat([testerprod_series, devprod_series, testers_series], axis=1)
+    release_dataset[DEVPROD_COLUMN] = release_dataset[TESTERFIX_COLUMN] / release_dataset[TESTERPROD_COLUMN]
+    release_dataset[AVG_TESTPROD_COLUMN] = release_dataset[TESTERPROD_COLUMN] / release_dataset[NUM_TESTERS_COLUMN]
 
     return release_dataset
 
 def get_tester_dataset(dataset):
-    """ Produces a tester dataset from a dataset of tester_reports """
-    tester_dataset = dataset.ix[:, [TESTER_COLUMN, DEFAULT_INFRATIO,
+    """ Produces a tester dataset from a dataset of tester_reports
+    :param dataset: Dataset of tester reports.
+    """
+    tester_dataset = dataset.ix[:, [TESTER_COLUMN, DEFAULT_INFRATIO, TESTER_REPORTS,
                                     NONSEVERE_INFRATIO]]
     tester_dataset = tester_dataset.drop_duplicates()
     tester_dataset = tester_dataset.set_index(TESTER_COLUMN)
     return tester_dataset
 
+
 def get_inflation_metrics(dataset):
     """ Returns the average inflation and inflated issues for a dataset. It also
-    includes the score calculations"""
+    includes the score calculations
+    :param dataset: Dataset of tester reports."""
+
     total_issues = float(dataset[data_analysis.TIMEFRAME_ISSUES_COLUMN].sum())
     inflated_issues = float(dataset[TIMEFRAME_INFLATION_COLUMN].sum())
-    inf_ratio = inflated_issues/total_issues
+    inf_ratio = inflated_issues / total_issues
     scores = defaultdict(lambda: 0)
     reports = defaultdict(lambda: 0)
-    
+
     for index, tester_play in dataset.iterrows():
-        tester_name = tester_play[TESTER_COLUMN]        
+        tester_name = tester_play[TESTER_COLUMN]
         severe_fixed = tester_play[SEVFIXED_COLUMN]
         default_fixed = tester_play[DEFFIXED_COLUMN]
         nonsevere_fixed = tester_play[NONSEVFIXED_COLUMN]
-        
+
         reported = tester_play[TESTERPROD_COLUMN]
-        
+
         score = game_simulation.get_score({game_simulation.SEVERE_KEY: severe_fixed,
                                            game_simulation.DEFAULT_KEY: default_fixed,
                                            game_simulation.NON_SEVERE_KEY: nonsevere_fixed})
         scores[tester_name] += score
         reports[tester_name] += reported
-                
-    scores = {tester_name: float(scores.get(tester_name, 0))/reports.get(tester_name, 0) 
+
+    scores = {tester_name: (float(scores.get(tester_name, 0)) / reports.get(tester_name, 0)
+                            if reports.get(tester_name, 0) != 0 else 0.0)
               for tester_name in set(scores)}
     sorted_scores = sorted(scores.items(), key=operator.itemgetter(1),
                            reverse=True)
-    
+
     print 'Dataset: inflation ', inflated_issues
-    print 'Dataset ratio ', inf_ratio    
-    print 'Dataset scores ', sorted_scores    
+    print 'Dataset ratio ', inf_ratio
+    print 'Dataset scores ', sorted_scores
 
     return inf_ratio, inflated_issues, sorted_scores
+
+
+def preprocess(dataset):
+    """ From the original dataset, this procedure does the following: Removes the 6 more recent time frames and includes
+    for analysis only the top 20% of productive tester
+    :param dataset: Raw dataset
+    :return: Polished dataset
+    """
+    exclusion_list = ["2015-07", "2015-08", "2015-09", "2015-10", "2015-11",
+                      "2015-112"]
+
+    tester_dataset = get_tester_dataset(dataset)
+    tester_dataset = tester_dataset.sort(TESTER_REPORTS, ascending=False)
+
+    total_testers = len(tester_dataset.index)
+    testers_to_include = total_testers / 5
+
+    _, axis = plt.subplots(1, 1, figsize=(16, 8))
+    tester_dataset.plot(x=tester_dataset.index, y=TESTER_REPORTS)
+    plt.axvline(testers_to_include, color='red', linestyle='--')
+    plt.savefig("tester_reports.png")
+
+    dataset = dataset[dataset[TESTER_REPORTS] >= tester_dataset.iloc[testers_to_include][TESTER_REPORTS]]
+    dataset = dataset[~dataset[PERIOD_COLUMN].isin(exclusion_list)]
+    dataset.fillna(0, inplace=True)
+
+    return dataset
 
 def main():
     """ Initial execution point """
     dataset = pd.read_csv(FILE_DIRECTORY + UNFILTERED_FILE_NAME)
-    exclusion_list = ["2015-07", "2015-08", "2015-09", "2015-10", "2015-11",
-                      "2015-112"]
-    dataset = dataset[~dataset[PERIOD_COLUMN].isin(exclusion_list)]
-    dataset[AVG_TESTPROD_COLUMN] = dataset[TOT_TESPROD_COLUMN] / dataset[NUM_TESTERS_COLUMN]
-    dataset[AVG_TESTPROD_COLUMN] = dataset[AVG_TESTPROD_COLUMN].astype(int)
-    dataset.fillna(0, inplace=True)
-    
-    releases = get_release_dataset(dataset)    
+    dataset = preprocess(dataset)
+    releases = get_release_dataset(dataset)
     release_train_dataset, release_test_dataset = cross_validation.train_test_split(releases,
-                                                                                    train_size=0.5)
-    train_dataset = dataset[dataset[PERIOD_COLUMN].isin(release_train_dataset.index.values)]     
-    test_dataset = dataset[dataset[PERIOD_COLUMN].isin(release_test_dataset.index.values)]     
+                                                                                    train_size=0.8)
+    train_dataset = dataset[dataset[PERIOD_COLUMN].isin(release_train_dataset.index.values)]
+    test_dataset = dataset[dataset[PERIOD_COLUMN].isin(release_test_dataset.index.values)]
     train_releases = len(release_train_dataset.index)
     test_releases = len(release_test_dataset.index)
 
     print 'train_releases ', train_releases
-    print 'test_releases ', test_releases  
+    print 'test_releases ', test_releases
 
     tester_train_dataset = get_tester_dataset(train_dataset)
 
     devprod_samples = release_train_dataset[DEVPROD_COLUMN]
-    print devprod_samples.unique()
-   
+
     devprod_dist = continuos_best_fit(devprod_samples)
     testprod_dist = poisson_best_fit(release_train_dataset)
     test_team = game_simulation.get_tester_team(tester_train_dataset)
@@ -270,13 +327,14 @@ def main():
 
     print 'probability_map ', probability_map
 
-    game_simulation.simulate(devprod_dist, testprod_dist, test_team,
-                             probability_map, train_releases, MAX_RUNS)
-    train_avginflation, train_inflation, train_scores = get_inflation_metrics(train_dataset)
+    # game_simulation.simulate(devprod_dist, testprod_dist, test_team,
+    #                          probability_map, train_releases, MAX_RUNS)
+    train_avginflation, train_inflation, _ = get_inflation_metrics(train_dataset)
 
     game_simulation.simulate(devprod_dist, testprod_dist, test_team,
                              probability_map, test_releases, MAX_RUNS)
     avg_inflation, total_inflation, sorted_scores = get_inflation_metrics(test_dataset)
+
 
 if __name__ == "__main__":
     main()

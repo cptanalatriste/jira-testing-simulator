@@ -153,7 +153,7 @@ class StochasticInflationStrategy(object):
     def __str__(self):
         return "D " + str(self.for_default) + \
                 ", NS " + str(self.for_nonsevere)
-    
+
     def __repr__(self):
         return str(self)
 
@@ -370,7 +370,8 @@ def run_scenario(devprod_dist, testprod_dist, test_team, probability_map, releas
 
     total_sum = np.sum(total)
     inflated_sum = np.sum(inflated)
-    tester_norm_scores = {tester.name: float(sum(tester.scores))/sum(tester.consolidate_release_reports())
+    tester_norm_scores = {tester.name: (float(sum(tester.scores))/sum(tester.consolidate_release_reports())
+                                        if sum(tester.consolidate_release_reports()) != 0 else 0.0)
                           for tester in product_testing.tester_team}
     tester_raw_scores = {tester.name: sum(tester.scores)
                              for tester in product_testing.tester_team}
@@ -392,7 +393,7 @@ def simulate(devprod_dist, testprod_dist, test_team, probability_map, releases,
                                                                 probability_map,
                                                                 releases)
         inflated_issues.append(inflated)
-        ratio.append(float(inflated)/total)
+        ratio.append(float(inflated)/total if total != 0 else 0.0)
 
         #TODO(cgavidia): This can be done better. Refactor later.
         scores = {tester_name: scores.get(tester_name, 0) + norm_scores.get(tester_name, 0)
@@ -411,7 +412,7 @@ def simulate(devprod_dist, testprod_dist, test_team, probability_map, releases,
     avg_scores = sorted(scores.items(), key=operator.itemgetter(1),
                         reverse=True)
     total_scores = sorted(total_scores.items(), key=operator.itemgetter(0))
-    
+
     print releases, ' periods ', max_runs, ' runs: Average inflation ', avg_inflation
     print releases, 'periods ', max_runs, ' runs: Average ratio ', avg_ratio
     print releases, 'periods ', max_runs, ' runs: Average scores ', avg_scores
