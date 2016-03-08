@@ -24,6 +24,7 @@ SEVERE_VALUE = 7
 DEFAULT_VALUE = 3
 NONSEVERE_VALUE = 1
 
+
 class DeveloperTeam(object):
     """ A Developer Team that fixes defects based on reporter priorities """
 
@@ -46,7 +47,7 @@ class DeveloperTeam(object):
         default_reports = []
         non_severe_reports = []
 
-        #TODO(cgavidia): We should find a more elegant way to deal with priorities
+        # TODO(cgavidia): We should find a more elegant way to deal with priorities
         for tester_index, report in enumerate(tester_reports):
             severe_reports.extend([tester_index for _ in range(report[SEVERE_KEY])])
             default_reports.extend([tester_index for _ in range(report[DEFAULT_KEY])])
@@ -106,6 +107,7 @@ class DeveloperTeam(object):
 
         return fixes_delivered
 
+
 class StochasticInflationStrategy(object):
     """ Defines a particular strategy for testing on a release """
 
@@ -152,10 +154,11 @@ class StochasticInflationStrategy(object):
 
     def __str__(self):
         return "D " + str(self.for_default) + \
-                ", NS " + str(self.for_nonsevere)
+               ", NS " + str(self.for_nonsevere)
 
     def __repr__(self):
         return str(self)
+
 
 class Tester(object):
     """ A Tester, that reports defect for a Software Version """
@@ -203,6 +206,7 @@ class Tester(object):
 
     def __repr__(self):
         return str(self)
+
 
 class SoftwareTesting(object):
     """ Manages the testing of an specific release """
@@ -312,7 +316,7 @@ class SoftwareTesting(object):
         inflated_issues = [report[DEFAULT_KEY + INFLATED_SUFFIX] +
                            report[NON_SEVERE_KEY + INFLATED_SUFFIX]
                            for report in consolidated_reports]
-        inflation_ratio = [float(inflated)/reported
+        inflation_ratio = [float(inflated) / reported
                            for inflated, reported in zip(inflated_issues, total_issues)]
         tester_scores = [sum(tester.scores) for tester in self.tester_team]
         tester_names = [tester.name for tester in self.tester_team]
@@ -328,18 +332,20 @@ class SoftwareTesting(object):
         axis[1].set_xticklabels(tester_names, rotation=90)
         axis[1].bar(range(len(tester_names)), tester_scores)
 
+
 def get_score(fix_report):
     """ Calculates the payoff function given an specific outcome """
     return fix_report[SEVERE_KEY] * SEVERE_VALUE + \
-            fix_report[DEFAULT_KEY] * DEFAULT_VALUE + \
-            fix_report[NON_SEVERE_KEY] * NONSEVERE_VALUE
+           fix_report[DEFAULT_KEY] * DEFAULT_VALUE + \
+           fix_report[NON_SEVERE_KEY] * NONSEVERE_VALUE
+
 
 def get_tester_team(tester_dataframe):
     """ Retrieves the tester team, including names and probabilities """
     tester_team = []
 
     for index, tester in tester_dataframe.iterrows():
-        #TODO(cgavidia): The column names should be centralized
+        # TODO(cgavidia): The column names should be centralized
         tester_name = index
         default_probability = tester['Default Inflation Ratio']
         nonsevere_probability = tester['Non-Severe Inflation Ratio']
@@ -349,6 +355,7 @@ def get_tester_team(tester_dataframe):
                                   StochasticInflationStrategy(tester_strategy)))
 
     return tester_team
+
 
 def run_scenario(devprod_dist, testprod_dist, test_team, probability_map, releases):
     """ Executes the simulation based on the calculated
@@ -370,17 +377,27 @@ def run_scenario(devprod_dist, testprod_dist, test_team, probability_map, releas
 
     total_sum = np.sum(total)
     inflated_sum = np.sum(inflated)
-    tester_norm_scores = {tester.name: (float(sum(tester.scores))/sum(tester.consolidate_release_reports())
+    tester_norm_scores = {tester.name: (float(sum(tester.scores)) / sum(tester.consolidate_release_reports())
                                         if sum(tester.consolidate_release_reports()) != 0 else 0.0)
                           for tester in product_testing.tester_team}
     tester_raw_scores = {tester.name: sum(tester.scores)
-                             for tester in product_testing.tester_team}
+                         for tester in product_testing.tester_team}
 
     return total_sum, inflated_sum, tester_norm_scores, tester_raw_scores
 
+
 def simulate(devprod_dist, testprod_dist, test_team, probability_map, releases,
              max_runs):
-    """ Calculates inflation information by executing a monte-carlo simulation """
+    """
+    Calculates inflation information by executing a monte-carlo simulation .
+    :param devprod_dist: Probability distribution for developer productivity.
+    :param testprod_dist: Probability distribution for tester productivity.
+    :param test_team: Tester team.
+    :param probability_map: Probability distribution for priority.
+    :param releases: Number of releases to simulate.
+    :param max_runs: Runs for the simulation.
+    :return: Raw scores per tester, normalized score per tester, inflated issues, inflation ratio.
+    """
     inflated_issues = []
     ratio = []
     scores = defaultdict(lambda: 0)
@@ -393,9 +410,9 @@ def simulate(devprod_dist, testprod_dist, test_team, probability_map, releases,
                                                                 probability_map,
                                                                 releases)
         inflated_issues.append(inflated)
-        ratio.append(float(inflated)/total if total != 0 else 0.0)
+        ratio.append(float(inflated) / total if total != 0 else 0.0)
 
-        #TODO(cgavidia): This can be done better. Refactor later.
+        # TODO(cgavidia): This can be done better. Refactor later.
         scores = {tester_name: scores.get(tester_name, 0) + norm_scores.get(tester_name, 0)
                   for tester_name in set(norm_scores)}
         total_scores = {tester_name: total_scores.get(tester_name, 0) + raw_scores.get(tester_name, 0)
@@ -404,9 +421,9 @@ def simulate(devprod_dist, testprod_dist, test_team, probability_map, releases,
     avg_inflation = np.mean(inflated_issues)
     avg_ratio = np.mean(ratio)
 
-    scores = {tester_name: float(sum_score)/max_runs
+    scores = {tester_name: float(sum_score) / max_runs
               for tester_name, sum_score in scores.items()}
-    total_scores = {tester_name: float(sum_score)/max_runs
+    total_scores = {tester_name: float(sum_score) / max_runs
                     for tester_name, sum_score in total_scores.items()}
 
     avg_scores = sorted(scores.items(), key=operator.itemgetter(1),
@@ -417,7 +434,8 @@ def simulate(devprod_dist, testprod_dist, test_team, probability_map, releases,
     print releases, 'periods ', max_runs, ' runs: Average ratio ', avg_ratio
     print releases, 'periods ', max_runs, ' runs: Average scores ', avg_scores
 
-    return total_scores
+    return total_scores, avg_scores, avg_inflation, avg_ratio
+
 
 def main():
     """ Initial execution point """
@@ -433,7 +451,7 @@ def main():
     test_productivity_data = data_analysis.sample_tester_productivity(data_frame)
     test_productivity_kernel = stats.gaussian_kde(test_productivity_data)
 
-    #This is because the dev productivity is assumed continued uniform.
+    # This is because the dev productivity is assumed continued uniform.
     dev_team = DeveloperTeam(dev_productivity_data.min(),
                              dev_productivity_data.max())
     tester_team = get_tester_team(data_frame)
@@ -455,5 +473,3 @@ if __name__ == "__main__":
 
     for _ in range(3):
         main()
-
-

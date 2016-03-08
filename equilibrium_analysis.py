@@ -51,12 +51,12 @@ def main():
             tester_team.append(game_simulation.Tester("Tester " + str(index), 
                                                       strategy))
         
-        scores = game_simulation.simulate(devprod_dist, testprod_dist,
+        sim_results = game_simulation.simulate(devprod_dist, testprod_dist,
                                           tester_team, probability_map,
                                           TIME_FRAMES, MAX_RUNS)
         pprint(tester_team)     
-        print "scores ", scores  
-        scores_per_profile.append(scores)
+        print "scores ", sim_results[0]
+        scores_per_profile.append(sim_results[0])
 
     game = gambit.new_table([len(strategie_values) for _ in range(PLAYER_NUMBER)])
     game.title = "Players: " + str(PLAYER_NUMBER) + " Strategies: " + str(len(strategie_values))
