@@ -39,22 +39,22 @@ def main():
         # TODO(cgavidia): All dataset operations should be on their own file.
         inf_ratio, inflated_issues, sorted_scores = empirical_study.get_inflation_metrics(test_dataset)
 
-        file_entries = []
-        file_entries.append(("Board", "Simulation Runs", "Index", "Inflation Ratio", "Inflated Issues",
-                             "Top Performer Name", "Top Performer Score", "Runner-up Name", "Runner-up Score",
-                             "Worst Performer Name", "Worst Performer Score", "Next-to-last Name",
-                             "Next-to-last Score", "Inflation Ratio in Test", "Inflated Issues in Test",
-                             "Top Performer Name in Test", "Top Performer Score in Test", "Runner-up Name in Test",
-                             "Runner-up Score in Test",
-                             "Worst Performer Name in Test", "Worst Performer Score in Test",
-                             "Next-to-last Name in Test", "Next-to-last Score in Test", "Execution time"))
-
         test_best_tester = sorted_scores[0]
         test_runnerup_tester = sorted_scores[1]
         test_worst_tester = sorted_scores[-1]
         test_nexttolast_tester = sorted_scores[-2]
 
         for simulation_run in simulation_runs:
+            file_entries = []
+            file_entries.append(("Board", "Simulation Runs", "Index", "Inflation Ratio", "Inflated Issues",
+                                 "Top Performer Name", "Top Performer Score", "Runner-up Name", "Runner-up Score",
+                                 "Worst Performer Name", "Worst Performer Score", "Next-to-last Name",
+                                 "Next-to-last Score", "Inflation Ratio in Test", "Inflated Issues in Test",
+                                 "Top Performer Name in Test", "Top Performer Score in Test", "Runner-up Name in Test",
+                                 "Runner-up Score in Test",
+                                 "Worst Performer Name in Test", "Worst Performer Score in Test",
+                                 "Next-to-last Name in Test", "Next-to-last Score in Test", "Execution time"))
+
             for index in range(runs_per_configuration):
                 start_time = time.time()
 
@@ -79,13 +79,14 @@ def main():
                      test_nexttolast_tester[0],
                      test_nexttolast_tester[1], execution_time))
 
-        print 'len(file_entries): ', len(file_entries)
-        print len(file_entries)
-        with open(FILE_DIRECTORY + "Board_" + str(board_id) + "_Simulations.csv", 'wb') as output:
-            csv_writer = csv.writer(output, dialect="excel")
+            print 'len(file_entries): ', len(file_entries)
+            print len(file_entries)
+            with open(FILE_DIRECTORY + "Board_" + str(board_id) + " " + str(simulation_run) + "_Simulation_Runs.csv",
+                      'wb') as output:
+                csv_writer = csv.writer(output, dialect="excel")
 
-            for line in file_entries:
-                csv_writer.writerow(line)
+                for line in file_entries:
+                    csv_writer.writerow(line)
 
 
 if __name__ == "__main__":
