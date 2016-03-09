@@ -243,8 +243,6 @@ class SoftwareTesting(object):
         time_frame_issues = self.discrete_dist.rvs()
         time_frame_issues = 0 if time_frame_issues < 0 else time_frame_issues
 
-        print 'time_frame_issues ', type(time_frame_issues), time_frame_issues
-
         issue_batch = {SEVERE_KEY: 0,
                        DEFAULT_KEY: 0,
                        NON_SEVERE_KEY: 0}
@@ -253,7 +251,6 @@ class SoftwareTesting(object):
             priority = self.assign_priority()
             issue_batch[priority] += 1
 
-        print 'issue_batch ', issue_batch
         return issue_batch
 
     def assign_priority(self):

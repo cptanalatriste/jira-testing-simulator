@@ -84,7 +84,7 @@ def fit_beta_distribution(samples):
     return {"name": dist_name, "dist": fitted_dist, "d": d_stat}
 
 
-def continuos_best_fit(samples):
+def continuos_best_fit(samples, board_id=0):
     """ Selects the best-fit distribution for a continuos variable
     :param samples: Data values
     """
@@ -100,14 +100,15 @@ def continuos_best_fit(samples):
         print "According to normality test, normal is selected"
         best_fit = normal_dist["dist"]
 
-    uniform_dist = fit_distribution(samples, stats.uniform, "uniform")
-    expon_dist = fit_distribution(samples, stats.expon, "expon")
-
-    # Results are similar to normal
-    lognorm_dist = fit_distribution(samples, stats.lognorm, "lognorm")
-    gamma_dist = fit_distribution(samples, stats.gamma, "gamma")
     beta_dist = fit_beta_distribution(samples)
-    weibull_min_dist = fit_distribution(samples, stats.weibull_min, "weibull_min")
+
+    # uniform_dist = fit_distribution(samples, stats.uniform, "uniform")
+    # expon_dist = fit_distribution(samples, stats.expon, "expon")
+    #
+    # # Results are similar to normal
+    # lognorm_dist = fit_distribution(samples, stats.lognorm, "lognorm")
+    # gamma_dist = fit_distribution(samples, stats.gamma, "gamma")
+    # weibull_min_dist = fit_distribution(samples, stats.weibull_min, "weibull_min")
 
     dist_list = [  # uniform_dist,
         # normal_dist,
@@ -117,7 +118,7 @@ def continuos_best_fit(samples):
         # weibull_min_dist,
         beta_dist]
 
-    plot_continuos_distributions(samples, dist_list)
+    plot_continuos_distributions(samples, dist_list, board_id)
 
     ks_best_fit = min(dist_list, key=lambda dist: dist["d"])
     print "The best fitting distribution according to kstest ", ks_best_fit["name"]
@@ -128,7 +129,7 @@ def continuos_best_fit(samples):
     return best_fit
 
 
-def plot_continuos_distributions(samples, dist_list=None):
+def plot_continuos_distributions(samples, dist_list=None, board_id=0):
     """ Plots a data series with a list of fitted distributions
     :param dist_list: List of distributions to include in the plot.
     :param samples: Data values.
@@ -147,10 +148,10 @@ def plot_continuos_distributions(samples, dist_list=None):
         axis.plot(x_values, y_values, label=dist["name"])
 
     axis.legend()
-    plt.savefig('continous_fit.png')
+    plt.savefig(str(board_id) + '_continous_fit.png')
 
 
-def poisson_best_fit(dataset):
+def poisson_best_fit(dataset, board_id=0):
     """ Returns the poisson fit for a sample set
     :param dataset: Data values.
     """
@@ -179,12 +180,12 @@ def poisson_best_fit(dataset):
                                                     "name": "Poisson Fit Lower"},
                                                    {"dist": higher_poisson_dist,
                                                     "color": "steelblue",
-                                                    "name": "Poisson Fit Higher"}])
+                                                    "name": "Poisson Fit Higher"}], board_id)
 
     return poisson_dist
 
 
-def plot_discrete_distributions(samples, dist_list=None):
+def plot_discrete_distributions(samples, dist_list=None, board_id=0):
     """ Plots a list of discretes distributions
     :param dist_list: List of distributions to include in the plot.
     :param samples: Data values.
@@ -208,7 +209,7 @@ def plot_discrete_distributions(samples, dist_list=None):
                  width=0.25, color=dist["color"], label=dist["name"])
 
     axis.legend()
-    plt.savefig('discrete_fit.png')
+    plt.savefig(str(board_id) + '_discrete_fit.png')
 
 
 def get_release_dataset(dataset):
@@ -276,7 +277,7 @@ def get_inflation_metrics(dataset):
     return inf_ratio, inflated_issues, sorted_scores
 
 
-def preprocess(dataset):
+def preprocess(dataset, board_id=0):
     """ From the original dataset, this procedure does the following: Removes the 6 more recent time frames and includes
     for analysis only the top 20% of productive tester
     :param dataset: Raw dataset
@@ -294,7 +295,7 @@ def preprocess(dataset):
     _, axis = plt.subplots(1, 1, figsize=(16, 8))
     tester_dataset.plot(x=tester_dataset.index, y=TESTER_REPORTS)
     plt.axvline(testers_to_include, color='red', linestyle='--')
-    plt.savefig("tester_reports.png")
+    plt.savefig(str(board_id) + "_tester_reports.png")
 
     dataset = dataset[dataset[TESTER_REPORTS] >= tester_dataset.iloc[testers_to_include][TESTER_REPORTS]]
     dataset = dataset[~dataset[PERIOD_COLUMN].isin(exclusion_list)]
@@ -303,7 +304,7 @@ def preprocess(dataset):
     return dataset
 
 
-def learn_simulation_parameters(train_dataset, release_train_dataset):
+def learn_simulation_parameters(train_dataset, release_train_dataset, board_id=0):
     """
     Learns simulation parameter based on the training data provided.
     :param train_dataset: Data set of tester reports.
@@ -314,21 +315,21 @@ def learn_simulation_parameters(train_dataset, release_train_dataset):
     tester_train_dataset = get_tester_dataset(train_dataset)
     devprod_samples = release_train_dataset[DEVPROD_COLUMN]
 
-    devprod_dist = continuos_best_fit(devprod_samples)
-    testprod_dist = poisson_best_fit(release_train_dataset)
+    devprod_dist = continuos_best_fit(devprod_samples, board_id)
+    testprod_dist = poisson_best_fit(release_train_dataset, board_id)
     test_team = game_simulation.get_tester_team(tester_train_dataset)
     probability_map = data_analysis.get_priority_dictionary(train_dataset)
 
     return devprod_dist, testprod_dist, test_team, probability_map
 
 
-def split_for_simulation(dataset):
+def split_for_simulation(dataset, board_id=0):
     """
     Given a dataset is does a random test-train split.
     :param dataset: Dataset of tester reports.
     :return: For train and test, a dataset of reports and a dataset of releases.
     """
-    dataset = preprocess(dataset)
+    dataset = preprocess(dataset, board_id)
     releases = get_release_dataset(dataset)
     release_train_dataset, release_test_dataset = cross_validation.train_test_split(releases,
                                                                                     train_size=0.8)
