@@ -1,5 +1,6 @@
 """ This file contains the code required to perform the model validation """
 
+import os
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -38,6 +39,7 @@ TESTER_COLUMN = "Tester"
 DEFAULT_INFRATIO = "Default Inflation Ratio"
 NONSEVERE_INFRATIO = "Non-Severe Inflation Ratio"
 TESTER_REPORTS = "Tester Reported Issues"
+IMG_DIR = "/plots/"
 
 # Simulation params
 MAX_RUNS = 100
@@ -86,6 +88,7 @@ def fit_beta_distribution(samples):
 
 def continuos_best_fit(samples, board_id=0):
     """ Selects the best-fit distribution for a continuos variable
+    :param board_id: Board identifier.
     :param samples: Data values
     """
     normal_dist = fit_distribution(samples, stats.norm, "norm")
@@ -148,11 +151,14 @@ def plot_continuos_distributions(samples, dist_list=None, board_id=0):
         axis.plot(x_values, y_values, label=dist["name"])
 
     axis.legend()
-    plt.savefig(str(board_id) + '_continous_fit.png')
+
+    current_dir = os.path.dirname(__file__)
+    plt.savefig(current_dir + IMG_DIR + str(board_id) + '_continous_fit.png')
 
 
 def poisson_best_fit(dataset, board_id=0):
     """ Returns the poisson fit for a sample set
+    :param board_id: Board identifier.
     :param dataset: Data values.
     """
     # poisson_model = smf.poisson(AVG_TESTPROD_COLUMN + " ~ 1", data=dataset)
@@ -209,7 +215,9 @@ def plot_discrete_distributions(samples, dist_list=None, board_id=0):
                  width=0.25, color=dist["color"], label=dist["name"])
 
     axis.legend()
-    plt.savefig(str(board_id) + '_discrete_fit.png')
+
+    current_dir = os.path.dirname(__file__)
+    plt.savefig(current_dir + IMG_DIR + str(board_id) + '_discrete_fit.png')
 
 
 def get_release_dataset(dataset):
@@ -280,6 +288,7 @@ def get_inflation_metrics(dataset):
 def preprocess(dataset, board_id=0):
     """ From the original dataset, this procedure does the following: Removes the 6 more recent time frames and includes
     for analysis only the top 20% of productive tester
+    :param board_id: Board identifier.
     :param dataset: Raw dataset
     :return: Polished dataset
     """
@@ -295,7 +304,9 @@ def preprocess(dataset, board_id=0):
     _, axis = plt.subplots(1, 1, figsize=(16, 8))
     tester_dataset.plot(x=tester_dataset.index, y=TESTER_REPORTS)
     plt.axvline(testers_to_include, color='red', linestyle='--')
-    plt.savefig(str(board_id) + "_tester_reports.png")
+
+    current_dir = os.path.dirname(__file__)
+    plt.savefig(current_dir + IMG_DIR + str(board_id) + "_tester_reports.png")
 
     dataset = dataset[dataset[TESTER_REPORTS] >= tester_dataset.iloc[testers_to_include][TESTER_REPORTS]]
     dataset = dataset[~dataset[PERIOD_COLUMN].isin(exclusion_list)]
@@ -326,6 +337,7 @@ def learn_simulation_parameters(train_dataset, release_train_dataset, board_id=0
 def split_for_simulation(dataset, board_id=0):
     """
     Given a dataset is does a random test-train split.
+    :param board_id: Board identifier.
     :param dataset: Dataset of tester reports.
     :return: For train and test, a dataset of reports and a dataset of releases.
     """
